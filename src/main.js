@@ -21,7 +21,12 @@ class GameScene extends Phaser.Scene {
                 hp: 150,
                 mana: 25,
                 speed: 4,
-                ability: "Slash"
+                ability: {
+                    name: "Slash",
+                    damage: 30,
+                    range: 90,
+                    type: "physical"
+                }
             },
             wizard: {
                 name: "Wizard",
@@ -32,7 +37,12 @@ class GameScene extends Phaser.Scene {
                 hp: 80,
                 mana: 120,
                 speed: 4,
-                ability: "Fireball"
+                ability: {
+                    name: "Fireball",
+                    damage: 22,
+                    range: 220,
+                    type: "fire"
+                }
             },
             archer: {
                 name: "Archer",
@@ -43,7 +53,12 @@ class GameScene extends Phaser.Scene {
                 hp: 100,
                 mana: 60,
                 speed: 5,
-                ability: "Arrow Shot"
+                ability: {
+                    name: "Arrow Shot",
+                    damage: 18,
+                    range: 300,
+                    type: "piercing"
+                }
             }
         };
 
@@ -57,6 +72,32 @@ class GameScene extends Phaser.Scene {
             40,
             40,
             this.getCurrentClass().color
+        );
+
+        this.enemy = this.add.rectangle(
+            700,
+            300,
+            50,
+            50,
+            0xff0000
+        );
+
+        this.enemyStats = {
+            name: "Training Goblin",
+            hp: 100,
+            maxHp: 100,
+            expReward: 35,
+            alive: true
+        };
+
+        this.enemyHpText = this.add.text(
+            this.enemy.x - 45,
+            this.enemy.y - 50,
+            "",
+            {
+                fontSize: "16px",
+                color: "#ffaaaa"
+            }
         );
 
         this.cursors = this.input.keyboard.addKeys({
@@ -88,7 +129,15 @@ class GameScene extends Phaser.Scene {
 
         this.hudText.setScrollFactor(0);
 
+        this.combatText = this.add.text(10, 260, "", {
+            fontSize: "18px",
+            color: "#ffff99"
+        });
+
+        this.combatText.setScrollFactor(0);
+
         this.updateHud();
+        this.updateEnemyHud();
 
         this.cameras.main.setBounds(
             0,
@@ -139,11 +188,92 @@ class GameScene extends Phaser.Scene {
 
     useAbility() {
         const currentClass = this.getCurrentClass();
+        const ability = currentClass.ability;
 
-        console.log(`${currentClass.name} used ${currentClass.ability}`);
+        if (!this.enemyStats.alive) {
+            this.combatText.setText("Enemy defeated. Refresh to respawn for now.");
+            return;
+        }
 
-        // No EXP here.
-        // EXP will come later from killing enemies.
+        const distanceToEnemy = Phaser.Math.Distance.Between(
+            this.player.x,
+            this.player.y,
+            this.enemy.x,
+            this.enemy.y
+        );
+
+        if (distanceToEnemy > ability.range) {
+            this.combatText.setText(
+                `${ability.name} missed. Enemy is too far away.`
+            );
+            return;
+        }
+
+        this.enemyStats.hp -= ability.damage;
+
+        this.showAttackFlash(ability.range);
+
+        this.combatText.setText(
+            `${currentClass.name} used ${ability.name}.\n` +
+            `${ability.damage} ${ability.type} damage.`
+        );
+
+        if (this.enemyStats.hp <= 0) {
+            this.enemyStats.hp = 0;
+            this.killEnemy();
+        }
+
+        this.updateEnemyHud();
+    }
+
+    showAttackFlash(range) {
+        const flash = this.add.circle(
+            this.player.x,
+            this.player.y,
+            range,
+            0xffffff,
+            0.12
+        );
+
+        this.time.delayedCall(120, () => {
+            flash.destroy();
+        });
+    }
+
+    killEnemy() {
+        const currentClass = this.getCurrentClass();
+
+        this.enemyStats.alive = false;
+        this.enemy.setFillStyle(0x555555);
+
+        this.gainExp(this.enemyStats.expReward);
+
+        this.combatText.setText(
+            `${this.enemyStats.name} defeated.\n` +
+            `${currentClass.name} gained ${this.enemyStats.expReward} EXP.`
+        );
+    }
+
+    gainExp(amount) {
+        const currentClass = this.getCurrentClass();
+
+        currentClass.exp += amount;
+
+        while (currentClass.exp >= currentClass.expToNext) {
+            currentClass.exp -= currentClass.expToNext;
+            currentClass.level += 1;
+            currentClass.expToNext = Math.floor(currentClass.expToNext * 1.4);
+            currentClass.hp += 10;
+            currentClass.mana += 5;
+        }
+
+        this.updateHud();
+    }
+
+    updateEnemyHud() {
+        this.enemyHpText.setText(
+            `${this.enemyStats.name}\nHP: ${this.enemyStats.hp} / ${this.enemyStats.maxHp}`
+        );
     }
 
     updateHud() {
@@ -156,7 +286,10 @@ class GameScene extends Phaser.Scene {
                 `EXP: ${currentClass.exp} / ${currentClass.expToNext}`,
                 `HP: ${currentClass.hp}`,
                 `Mana: ${currentClass.mana}`,
-                `Ability: ${currentClass.ability}`,
+                `Ability: ${currentClass.ability.name}`,
+                `Damage: ${currentClass.ability.damage}`,
+                `Range: ${currentClass.ability.range}`,
+                `Type: ${currentClass.ability.type}`,
                 "",
                 "1 = Warrior",
                 "2 = Wizard",
