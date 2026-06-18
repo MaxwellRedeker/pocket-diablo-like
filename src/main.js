@@ -11,6 +11,7 @@ class GameScene extends Phaser.Scene {
         this.worldWidth = 2000;
         this.worldHeight = 2000;
         this.projectiles = [];
+        this.gold = 0;
 
         this.classes = {
             warrior: {
@@ -29,6 +30,10 @@ class GameScene extends Phaser.Scene {
                     range: 90,
                     type: "physical",
                     projectile: false
+                },
+                secondary: {
+                    name: "Guard",
+                    type: "defense"
                 }
             },
             wizard: {
@@ -50,6 +55,10 @@ class GameScene extends Phaser.Scene {
                     projectileColor: 0xff6600,
                     projectileSize: 16,
                     projectileSpeed: 8
+                },
+                secondary: {
+                    name: "Arcane Guard",
+                    type: "defense"
                 }
             },
             archer: {
@@ -71,6 +80,10 @@ class GameScene extends Phaser.Scene {
                     projectileColor: 0xffff66,
                     projectileSize: 10,
                     projectileSpeed: 11
+                },
+                secondary: {
+                    name: "Dodge Guard",
+                    type: "defense"
                 }
             }
         };
@@ -82,6 +95,8 @@ class GameScene extends Phaser.Scene {
                 size: 50,
                 hp: 100,
                 expReward: 35,
+                goldMin: 5,
+                goldMax: 12,
                 speed: 1.3,
                 chaseRange: 450,
                 attackRange: 55,
@@ -93,6 +108,8 @@ class GameScene extends Phaser.Scene {
                 size: 60,
                 hp: 140,
                 expReward: 45,
+                goldMin: 3,
+                goldMax: 9,
                 speed: 0.9,
                 chaseRange: 350,
                 attackRange: 60,
@@ -104,6 +121,8 @@ class GameScene extends Phaser.Scene {
                 size: 35,
                 hp: 70,
                 expReward: 25,
+                goldMin: 2,
+                goldMax: 7,
                 speed: 2.2,
                 chaseRange: 500,
                 attackRange: 45,
@@ -115,6 +134,8 @@ class GameScene extends Phaser.Scene {
                 size: 42,
                 hp: 90,
                 expReward: 55,
+                goldMin: 10,
+                goldMax: 22,
                 speed: 1.6,
                 chaseRange: 550,
                 attackRange: 50,
@@ -145,7 +166,8 @@ class GameScene extends Phaser.Scene {
             warrior: "ONE",
             wizard: "TWO",
             archer: "THREE",
-            ability: "SPACE"
+            mainAttack: "Q",
+            secondary: "E"
         });
 
         this.input.keyboard.addCapture([
@@ -153,24 +175,24 @@ class GameScene extends Phaser.Scene {
             Phaser.Input.Keyboard.KeyCodes.A,
             Phaser.Input.Keyboard.KeyCodes.S,
             Phaser.Input.Keyboard.KeyCodes.D,
-            Phaser.Input.Keyboard.KeyCodes.SPACE
+            Phaser.Input.Keyboard.KeyCodes.Q,
+            Phaser.Input.Keyboard.KeyCodes.E
         ]);
 
         this.hudText = this.add.text(10, 10, "", {
             fontSize: "18px",
             color: "#ffffff"
         });
-
         this.hudText.setScrollFactor(0);
 
         this.combatText = this.add.text(10, 300, "", {
             fontSize: "18px",
             color: "#ffff99"
         });
-
         this.combatText.setScrollFactor(0);
 
         this.enemyAttackCooldown = false;
+        this.secondaryCooldown = false;
 
         this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
         this.cameras.main.startFollow(this.player, true);
@@ -234,6 +256,8 @@ class GameScene extends Phaser.Scene {
             hp: enemyTemplate.hp,
             maxHp: enemyTemplate.hp,
             expReward: enemyTemplate.expReward,
+            goldMin: enemyTemplate.goldMin,
+            goldMax: enemyTemplate.goldMax,
             alive: true,
             speed: enemyTemplate.speed,
             chaseRange: enemyTemplate.chaseRange,
@@ -265,7 +289,7 @@ class GameScene extends Phaser.Scene {
         this.updateHud();
     }
 
-    useAbility() {
+    useMainAttack() {
         const currentClass = this.getCurrentClass();
         const ability = currentClass.ability;
 
@@ -308,6 +332,36 @@ class GameScene extends Phaser.Scene {
         this.updateHud();
     }
 
+    useSecondary() {
+        if (this.secondaryCooldown) return;
+
+        const currentClass = this.getCurrentClass();
+        const secondary = currentClass.secondary;
+
+        this.combatText.setText(
+            `${currentClass.name} used ${secondary.name}.\n` +
+            "Secondary slot reserved for shield / future skill."
+        );
+
+        const guardFlash = this.add.circle(
+            this.player.x,
+            this.player.y,
+            70,
+            0x99ccff,
+            0.18
+        );
+
+        this.secondaryCooldown = true;
+
+        this.time.delayedCall(250, () => {
+            guardFlash.destroy();
+        });
+
+        this.time.delayedCall(1200, () => {
+            this.secondaryCooldown = false;
+        });
+    }
+
     fireProjectile(currentClass, ability) {
         const angle = Phaser.Math.Angle.Between(
             this.player.x,
@@ -323,13 +377,14 @@ class GameScene extends Phaser.Scene {
             ability.projectileColor
         );
 
-        projectile.data = {
+        projectile.projectileInfo = {
             damage: ability.damage,
             type: ability.type,
             name: ability.name,
             className: currentClass.name,
             speed: ability.projectileSpeed,
             range: ability.range,
+            projectileSize: ability.projectileSize,
             distanceTraveled: 0,
             velocityX: Math.cos(angle) * ability.projectileSpeed,
             velocityY: Math.sin(angle) * ability.projectileSpeed
@@ -344,11 +399,18 @@ class GameScene extends Phaser.Scene {
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
             const projectile = this.projectiles[i];
 
-            projectile.x += projectile.data.velocityX;
-            projectile.y += projectile.data.velocityY;
-            projectile.data.distanceTraveled += projectile.data.speed;
+            if (!projectile || !projectile.active || !projectile.projectileInfo) {
+                this.projectiles.splice(i, 1);
+                continue;
+            }
 
-            if (this.enemyStats && this.enemyStats.alive) {
+            const info = projectile.projectileInfo;
+
+            projectile.x += info.velocityX;
+            projectile.y += info.velocityY;
+            info.distanceTraveled += info.speed;
+
+            if (this.enemyStats && this.enemyStats.alive && this.enemy && this.enemy.active) {
                 const distanceToEnemy = Phaser.Math.Distance.Between(
                     projectile.x,
                     projectile.y,
@@ -356,12 +418,14 @@ class GameScene extends Phaser.Scene {
                     this.enemy.y
                 );
 
-                if (distanceToEnemy <= this.enemyStats.size / 2 + projectile.radius) {
-                    this.enemyStats.hp -= projectile.data.damage;
+                const hitRange = this.enemyStats.size / 2 + info.projectileSize;
+
+                if (distanceToEnemy <= hitRange) {
+                    this.enemyStats.hp -= info.damage;
 
                     this.combatText.setText(
-                        `${projectile.data.name} hit ${this.enemyStats.name}.\n` +
-                        `${projectile.data.damage} ${projectile.data.type} damage.`
+                        `${info.name} hit ${this.enemyStats.name}.\n` +
+                        `${info.damage} ${info.type} damage.`
                     );
 
                     projectile.destroy();
@@ -370,15 +434,16 @@ class GameScene extends Phaser.Scene {
                     if (this.enemyStats.hp <= 0) {
                         this.enemyStats.hp = 0;
                         this.killEnemy();
+                    } else {
+                        this.updateEnemyHud();
+                        this.updateHud();
                     }
 
-                    this.updateEnemyHud();
-                    this.updateHud();
                     continue;
                 }
             }
 
-            if (projectile.data.distanceTraveled >= projectile.data.range) {
+            if (info.distanceTraveled >= info.range) {
                 projectile.destroy();
                 this.projectiles.splice(i, 1);
             }
@@ -395,6 +460,12 @@ class GameScene extends Phaser.Scene {
 
     killEnemy() {
         const currentClass = this.getCurrentClass();
+        const goldReward = Phaser.Math.Between(
+            this.enemyStats.goldMin,
+            this.enemyStats.goldMax
+        );
+
+        this.gold += goldReward;
 
         this.enemyStats.alive = false;
         this.enemy.setFillStyle(0x555555);
@@ -404,6 +475,7 @@ class GameScene extends Phaser.Scene {
         this.combatText.setText(
             `${this.enemyStats.name} defeated.\n` +
             `${currentClass.name} gained ${this.enemyStats.expReward} EXP.\n` +
+            `Found ${goldReward} gold.\n` +
             `${levelUpMessage}` +
             "Enemy respawning in 4 seconds..."
         );
@@ -412,6 +484,8 @@ class GameScene extends Phaser.Scene {
             this.spawnEnemy();
             this.updateHud();
         });
+
+        this.updateHud();
     }
 
     gainExp(amount) {
@@ -456,9 +530,11 @@ class GameScene extends Phaser.Scene {
                 `Class: ${currentClass.name}`,
                 `Level: ${currentClass.level}`,
                 `EXP: ${currentClass.exp} / ${currentClass.expToNext}`,
+                `Gold: ${this.gold}`,
                 `HP: ${currentClass.currentHp} / ${currentClass.maxHp}`,
                 `Mana: ${currentClass.mana}`,
-                `Ability: ${currentClass.ability.name}`,
+                `Q Main: ${currentClass.ability.name}`,
+                `E Secondary: ${currentClass.secondary.name}`,
                 `Damage: ${currentClass.ability.damage}`,
                 `Range: ${currentClass.ability.range}`,
                 `Type: ${currentClass.ability.type}`,
@@ -471,7 +547,8 @@ class GameScene extends Phaser.Scene {
                 "1 = Warrior",
                 "2 = Wizard",
                 "3 = Archer",
-                "SPACE = Use Ability",
+                "Q = Main Attack",
+                "E = Secondary / Shield",
                 "WASD = Move"
             ].join("\n")
         );
@@ -567,7 +644,7 @@ class GameScene extends Phaser.Scene {
         });
     }
 
-    updateClassSwitching() {
+    updateControls() {
         if (Phaser.Input.Keyboard.JustDown(this.keys.warrior)) {
             this.switchClass("warrior");
         }
@@ -580,8 +657,12 @@ class GameScene extends Phaser.Scene {
             this.switchClass("archer");
         }
 
-        if (Phaser.Input.Keyboard.JustDown(this.keys.ability)) {
-            this.useAbility();
+        if (Phaser.Input.Keyboard.JustDown(this.keys.mainAttack)) {
+            this.useMainAttack();
+        }
+
+        if (Phaser.Input.Keyboard.JustDown(this.keys.secondary)) {
+            this.useSecondary();
         }
     }
 
@@ -589,7 +670,7 @@ class GameScene extends Phaser.Scene {
         this.updatePlayerMovement();
         this.updateEnemyAi();
         this.updateProjectiles();
-        this.updateClassSwitching();
+        this.updateControls();
     }
 }
 
