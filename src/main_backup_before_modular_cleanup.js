@@ -1,7 +1,4 @@
 import Phaser from "phaser";
-import {itemTypes} from "./data/items.js";
-import { enemyTypes } from "./data/enemies.js";
-import { playerClasses } from "./data/classes.js";
 
 const SAVE_KEY = "pocketDiabloSave_v1";
 
@@ -21,11 +18,180 @@ class GameScene extends Phaser.Scene {
         this.gold = 0;
         this.inventory = {};
 
-        this.itemTypes = itemTypes;
+        this.itemTypes = {
+            tornCloth: { name: "Torn Cloth", rarity: "common" },
+            rustyDagger: { name: "Rusty Dagger", rarity: "uncommon" },
+            slimeGel: { name: "Slime Gel", rarity: "common" },
+            greenCore: { name: "Green Core", rarity: "rare" },
+            boneShard: { name: "Bone Shard", rarity: "common" },
+            ratFang: { name: "Rat Fang", rarity: "uncommon" },
+            emberCore: { name: "Ember Core", rarity: "rare" },
+            burntHorn: { name: "Burnt Horn", rarity: "uncommon" }
+        };
 
-        this.classes = structuredClone(playerClasses);
+        this.classes = {
+            warrior: {
+                name: "Warrior",
+                color: 0xff4444,
+                level: 1,
+                exp: 0,
+                expToNext: 100,
+                skillPoints: 0,
+                maxHp: 150,
+                currentHp: 150,
+                mana: 25,
+                speed: 4,
+                ability: {
+                    name: "Slash",
+                    damage: 30,
+                    range: 90,
+                    type: "physical",
+                    projectile: false
+                },
+                secondary: {
+                    name: "Guard",
+                    type: "defense"
+                },
+                skills: {
+                    power: { name: "Sword Mastery", level: 0, maxLevel: 5 },
+                    vitality: { name: "Iron Body", level: 0, maxLevel: 5 },
+                    utility: { name: "Battle Footwork", level: 0, maxLevel: 5 }
+                }
+            },
+            wizard: {
+                name: "Wizard",
+                color: 0x3399ff,
+                level: 1,
+                exp: 0,
+                expToNext: 100,
+                skillPoints: 0,
+                maxHp: 80,
+                currentHp: 80,
+                mana: 120,
+                speed: 4,
+                ability: {
+                    name: "Fireball",
+                    damage: 22,
+                    range: 320,
+                    type: "fire",
+                    projectile: true,
+                    projectileColor: 0xff6600,
+                    projectileSize: 16,
+                    projectileSpeed: 8
+                },
+                secondary: {
+                    name: "Arcane Guard",
+                    type: "defense"
+                },
+                skills: {
+                    power: { name: "Fire Mastery", level: 0, maxLevel: 5 },
+                    vitality: { name: "Mana Shielding", level: 0, maxLevel: 5 },
+                    utility: { name: "Arcane Flow", level: 0, maxLevel: 5 }
+                }
+            },
+            archer: {
+                name: "Archer",
+                color: 0x44ff44,
+                level: 1,
+                exp: 0,
+                expToNext: 100,
+                skillPoints: 0,
+                maxHp: 100,
+                currentHp: 100,
+                mana: 60,
+                speed: 5,
+                ability: {
+                    name: "Arrow Shot",
+                    damage: 18,
+                    range: 420,
+                    type: "piercing",
+                    projectile: true,
+                    projectileColor: 0xffff66,
+                    projectileSize: 10,
+                    projectileSpeed: 11
+                },
+                secondary: {
+                    name: "Dodge Guard",
+                    type: "defense"
+                },
+                skills: {
+                    power: { name: "Precision", level: 0, maxLevel: 5 },
+                    vitality: { name: "Survivalist", level: 0, maxLevel: 5 },
+                    utility: { name: "Quick Step", level: 0, maxLevel: 5 }
+                }
+            }
+        };
 
-        this.enemyTypes = enemyTypes;
+        this.enemyTypes = [
+            {
+                name: "Training Goblin",
+                color: 0xff0000,
+                size: 50,
+                hp: 100,
+                expReward: 35,
+                goldMin: 5,
+                goldMax: 12,
+                speed: 1.3,
+                chaseRange: 450,
+                attackRange: 55,
+                damage: 8,
+                lootTable: [
+                    { itemKey: "tornCloth", chance: 70 },
+                    { itemKey: "rustyDagger", chance: 20 }
+                ]
+            },
+            {
+                name: "Forest Slime",
+                color: 0x33cc33,
+                size: 60,
+                hp: 140,
+                expReward: 45,
+                goldMin: 3,
+                goldMax: 9,
+                speed: 0.9,
+                chaseRange: 350,
+                attackRange: 60,
+                damage: 6,
+                lootTable: [
+                    { itemKey: "slimeGel", chance: 85 },
+                    { itemKey: "greenCore", chance: 12 }
+                ]
+            },
+            {
+                name: "Bone Rat",
+                color: 0xcccccc,
+                size: 35,
+                hp: 70,
+                expReward: 25,
+                goldMin: 2,
+                goldMax: 7,
+                speed: 2.2,
+                chaseRange: 500,
+                attackRange: 45,
+                damage: 10,
+                lootTable: [
+                    { itemKey: "boneShard", chance: 75 },
+                    { itemKey: "ratFang", chance: 25 }
+                ]
+            },
+            {
+                name: "Ash Imp",
+                color: 0xff8800,
+                size: 42,
+                hp: 90,
+                expReward: 55,
+                goldMin: 10,
+                goldMax: 22,
+                speed: 1.6,
+                chaseRange: 550,
+                attackRange: 50,
+                damage: 14,
+                lootTable: [
+                    { itemKey: "emberCore", chance: 30 },
+                    { itemKey: "burntHorn", chance: 45 }
+                ]
+            }
+        ];
 
         this.currentClassKey = "wizard";
 
