@@ -1,9 +1,10 @@
+import { saveGame, loadGame } from "./systems/saveSystem.js";
 import Phaser from "phaser";
 import {itemTypes} from "./data/items.js";
 import { enemyTypes } from "./data/enemies.js";
 import { playerClasses } from "./data/classes.js";
 
-const SAVE_KEY = "pocketDiabloSave_v1";
+
 
 class GameScene extends Phaser.Scene {
     constructor() {
@@ -164,69 +165,11 @@ class GameScene extends Phaser.Scene {
     }
 
     saveGame() {
-        const saveData = {
-            version: 2,
-            gold: this.gold,
-            inventory: this.inventory,
-            classes: this.classes,
-            currentClassKey: this.currentClassKey,
-            playerPosition: {
-                x: this.player.x,
-                y: this.player.y
-            }
-        };
-
-        localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
-        this.combatText.setText("Game saved.\nLocal browser save created.");
+        saveGame(this);
     }
 
     loadGame() {
-        const rawSave = localStorage.getItem(SAVE_KEY);
-
-        if (!rawSave) {
-            this.combatText.setText("No save file found.");
-            return;
-        }
-
-        try {
-            const saveData = JSON.parse(rawSave);
-
-            this.gold = saveData.gold ?? 0;
-            this.inventory = saveData.inventory ?? {};
-            this.classes = saveData.classes ?? this.classes;
-            this.currentClassKey = saveData.currentClassKey ?? "wizard";
-
-            this.ensureClassProgressionFields();
-
-            if (saveData.playerPosition) {
-                this.player.x = Phaser.Math.Clamp(
-                    saveData.playerPosition.x,
-                    20,
-                    this.worldWidth - 20
-                );
-                this.player.y = Phaser.Math.Clamp(
-                    saveData.playerPosition.y,
-                    20,
-                    this.worldHeight - 20
-                );
-            }
-
-            this.player.fillColor = this.getCurrentClass().color;
-
-            for (const projectile of this.projectiles) {
-                projectile.destroy();
-            }
-            this.projectiles = [];
-
-            this.clearEnemies();
-            this.spawnInitialEnemies();
-            this.updateHud();
-
-            this.combatText.setText("Game loaded.\nProgress restored from browser save.");
-        } catch (error) {
-            console.error(error);
-            this.combatText.setText("Save file failed to load.");
-        }
+        loadGame(this);
     }
 
     createWorldGrid() {
