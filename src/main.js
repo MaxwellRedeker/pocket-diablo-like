@@ -1,5 +1,7 @@
 import Phaser from "phaser";
 
+const SAVE_KEY = "pocketDiabloSave_v1";
+
 class GameScene extends Phaser.Scene {
     constructor() {
         super("GameScene");
@@ -12,6 +14,18 @@ class GameScene extends Phaser.Scene {
         this.worldHeight = 2000;
         this.projectiles = [];
         this.gold = 0;
+        this.inventory = {};
+
+        this.itemTypes = {
+            tornCloth: { name: "Torn Cloth", rarity: "common" },
+            rustyDagger: { name: "Rusty Dagger", rarity: "uncommon" },
+            slimeGel: { name: "Slime Gel", rarity: "common" },
+            greenCore: { name: "Green Core", rarity: "rare" },
+            boneShard: { name: "Bone Shard", rarity: "common" },
+            ratFang: { name: "Rat Fang", rarity: "uncommon" },
+            emberCore: { name: "Ember Core", rarity: "rare" },
+            burntHorn: { name: "Burnt Horn", rarity: "uncommon" }
+        };
 
         this.classes = {
             warrior: {
@@ -100,7 +114,11 @@ class GameScene extends Phaser.Scene {
                 speed: 1.3,
                 chaseRange: 450,
                 attackRange: 55,
-                damage: 8
+                damage: 8,
+                lootTable: [
+                    { itemKey: "tornCloth", chance: 70 },
+                    { itemKey: "rustyDagger", chance: 20 }
+                ]
             },
             {
                 name: "Forest Slime",
@@ -113,7 +131,11 @@ class GameScene extends Phaser.Scene {
                 speed: 0.9,
                 chaseRange: 350,
                 attackRange: 60,
-                damage: 6
+                damage: 6,
+                lootTable: [
+                    { itemKey: "slimeGel", chance: 85 },
+                    { itemKey: "greenCore", chance: 12 }
+                ]
             },
             {
                 name: "Bone Rat",
@@ -126,7 +148,11 @@ class GameScene extends Phaser.Scene {
                 speed: 2.2,
                 chaseRange: 500,
                 attackRange: 45,
-                damage: 10
+                damage: 10,
+                lootTable: [
+                    { itemKey: "boneShard", chance: 75 },
+                    { itemKey: "ratFang", chance: 25 }
+                ]
             },
             {
                 name: "Ash Imp",
@@ -139,7 +165,11 @@ class GameScene extends Phaser.Scene {
                 speed: 1.6,
                 chaseRange: 550,
                 attackRange: 50,
-                damage: 14
+                damage: 14,
+                lootTable: [
+                    { itemKey: "emberCore", chance: 30 },
+                    { itemKey: "burntHorn", chance: 45 }
+                ]
             }
         ];
 
@@ -167,7 +197,9 @@ class GameScene extends Phaser.Scene {
             wizard: "TWO",
             archer: "THREE",
             mainAttack: "Q",
-            secondary: "E"
+            secondary: "E",
+            saveGame: "F6",
+            loadGame: "F9"
         });
 
         this.input.keyboard.addCapture([
@@ -176,20 +208,61 @@ class GameScene extends Phaser.Scene {
             Phaser.Input.Keyboard.KeyCodes.S,
             Phaser.Input.Keyboard.KeyCodes.D,
             Phaser.Input.Keyboard.KeyCodes.Q,
-            Phaser.Input.Keyboard.KeyCodes.E
+            Phaser.Input.Keyboard.KeyCodes.E,
+            Phaser.Input.Keyboard.KeyCodes.F6,
+            Phaser.Input.Keyboard.KeyCodes.F9
         ]);
 
-        this.hudText = this.add.text(10, 10, "", {
+        this.playerHudText = this.add.text(14, 14, "", {
             fontSize: "18px",
-            color: "#ffffff"
+            color: "#ffffff",
+            backgroundColor: "#00000088",
+            padding: { x: 8, y: 6 }
         });
-        this.hudText.setScrollFactor(0);
+        this.playerHudText.setScrollFactor(0);
 
-        this.combatText = this.add.text(10, 300, "", {
+        this.enemyHudText = this.add.text(14, 14, "", {
             fontSize: "18px",
-            color: "#ffff99"
+            color: "#ffcccc",
+            backgroundColor: "#00000088",
+            padding: { x: 8, y: 6 },
+            align: "right"
+        });
+        this.enemyHudText.setScrollFactor(0);
+
+        this.combatText = this.add.text(14, 14, "", {
+            fontSize: "18px",
+            color: "#ffff99",
+            backgroundColor: "#00000088",
+            padding: { x: 8, y: 6 }
         });
         this.combatText.setScrollFactor(0);
+
+        this.inventoryText = this.add.text(14, 14, "", {
+            fontSize: "18px",
+            color: "#ccffcc",
+            backgroundColor: "#00000088",
+            padding: { x: 8, y: 6 },
+            align: "right"
+        });
+        this.inventoryText.setScrollFactor(0);
+
+        this.controlsText = this.add.text(14, 14, "", {
+            fontSize: "16px",
+            color: "#dddddd",
+            backgroundColor: "#00000088",
+            padding: { x: 8, y: 6 }
+        });
+        this.controlsText.setScrollFactor(0);
+
+        this.chatPlaceholderText = this.add.text(14, 14, "", {
+            fontSize: "16px",
+            color: "#99ccff",
+            backgroundColor: "#00000088",
+            padding: { x: 8, y: 6 },
+            align: "right"
+        });
+        this.chatPlaceholderText.setScrollFactor(0);
 
         this.enemyAttackCooldown = false;
         this.secondaryCooldown = false;
@@ -198,8 +271,86 @@ class GameScene extends Phaser.Scene {
         this.cameras.main.startFollow(this.player, true);
         this.cameras.main.setZoom(1);
 
+        this.scale.on("resize", this.handleResize, this);
+        this.handleResize({ width: this.scale.width, height: this.scale.height });
+
         this.spawnEnemy();
         this.updateHud();
+    }
+
+    handleResize(gameSize) {
+        const width = gameSize.width;
+        const height = gameSize.height;
+
+        this.enemyHudText?.setPosition(width - 14, 14).setOrigin(1, 0);
+        this.inventoryText?.setPosition(width - 14, height - 14).setOrigin(1, 1);
+        this.combatText?.setPosition(14, height - 120).setOrigin(0, 0);
+        this.controlsText?.setPosition(14, height - 14).setOrigin(0, 1);
+        this.chatPlaceholderText?.setPosition(width - 14, height - 170).setOrigin(1, 1);
+    }
+
+    saveGame() {
+        const saveData = {
+            version: 1,
+            gold: this.gold,
+            inventory: this.inventory,
+            classes: this.classes,
+            currentClassKey: this.currentClassKey,
+            playerPosition: {
+                x: this.player.x,
+                y: this.player.y
+            }
+        };
+
+        localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+
+        this.combatText.setText("Game saved.\nLocal browser save created.");
+    }
+
+    loadGame() {
+        const rawSave = localStorage.getItem(SAVE_KEY);
+
+        if (!rawSave) {
+            this.combatText.setText("No save file found.");
+            return;
+        }
+
+        try {
+            const saveData = JSON.parse(rawSave);
+
+            this.gold = saveData.gold ?? 0;
+            this.inventory = saveData.inventory ?? {};
+            this.classes = saveData.classes ?? this.classes;
+            this.currentClassKey = saveData.currentClassKey ?? "wizard";
+
+            if (saveData.playerPosition) {
+                this.player.x = Phaser.Math.Clamp(
+                    saveData.playerPosition.x,
+                    20,
+                    this.worldWidth - 20
+                );
+                this.player.y = Phaser.Math.Clamp(
+                    saveData.playerPosition.y,
+                    20,
+                    this.worldHeight - 20
+                );
+            }
+
+            this.player.fillColor = this.getCurrentClass().color;
+
+            for (const projectile of this.projectiles) {
+                projectile.destroy();
+            }
+            this.projectiles = [];
+
+            this.spawnEnemy();
+            this.updateHud();
+
+            this.combatText.setText("Game loaded.\nProgress restored from browser save.");
+        } catch (error) {
+            console.error(error);
+            this.combatText.setText("Save file failed to load.");
+        }
     }
 
     createWorldGrid() {
@@ -252,18 +403,9 @@ class GameScene extends Phaser.Scene {
         );
 
         this.enemyStats = {
-            name: enemyTemplate.name,
-            hp: enemyTemplate.hp,
+            ...enemyTemplate,
             maxHp: enemyTemplate.hp,
-            expReward: enemyTemplate.expReward,
-            goldMin: enemyTemplate.goldMin,
-            goldMax: enemyTemplate.goldMax,
-            alive: true,
-            speed: enemyTemplate.speed,
-            chaseRange: enemyTemplate.chaseRange,
-            attackRange: enemyTemplate.attackRange,
-            damage: enemyTemplate.damage,
-            size: enemyTemplate.size
+            alive: true
         };
 
         this.enemyHpText = this.add.text(this.enemy.x - 45, this.enemy.y - 50, "", {
@@ -450,6 +592,46 @@ class GameScene extends Phaser.Scene {
         }
     }
 
+    rollEnemyLoot() {
+        const foundItems = [];
+
+        for (const drop of this.enemyStats.lootTable || []) {
+            const roll = Phaser.Math.Between(1, 100);
+
+            if (roll <= drop.chance) {
+                this.addItemToInventory(drop.itemKey, 1);
+                foundItems.push(this.itemTypes[drop.itemKey].name);
+            }
+        }
+
+        return foundItems;
+    }
+
+    addItemToInventory(itemKey, amount) {
+        if (!this.inventory[itemKey]) {
+            this.inventory[itemKey] = 0;
+        }
+
+        this.inventory[itemKey] += amount;
+    }
+
+    getInventoryLines() {
+        const itemKeys = Object.keys(this.inventory);
+
+        if (itemKeys.length === 0) {
+            return ["Inventory: Empty"];
+        }
+
+        return [
+            "Inventory",
+            ...itemKeys.slice(0, 6).map((itemKey) => {
+                const item = this.itemTypes[itemKey];
+                return `${item.name} x${this.inventory[itemKey]}`;
+            }),
+            itemKeys.length > 6 ? `+${itemKeys.length - 6} more items` : ""
+        ].filter(Boolean);
+    }
+
     showAttackFlash(range) {
         const flash = this.add.circle(this.player.x, this.player.y, range, 0xffffff, 0.12);
 
@@ -459,13 +641,18 @@ class GameScene extends Phaser.Scene {
     }
 
     killEnemy() {
-        const currentClass = this.getCurrentClass();
         const goldReward = Phaser.Math.Between(
             this.enemyStats.goldMin,
             this.enemyStats.goldMax
         );
 
         this.gold += goldReward;
+
+        const foundItems = this.rollEnemyLoot();
+        const lootMessage =
+            foundItems.length > 0
+                ? `Loot: ${foundItems.join(", ")}.\n`
+                : "Loot: Nothing dropped.\n";
 
         this.enemyStats.alive = false;
         this.enemy.setFillStyle(0x555555);
@@ -474,10 +661,10 @@ class GameScene extends Phaser.Scene {
 
         this.combatText.setText(
             `${this.enemyStats.name} defeated.\n` +
-            `${currentClass.name} gained ${this.enemyStats.expReward} EXP.\n` +
-            `Found ${goldReward} gold.\n` +
+            `+${this.enemyStats.expReward} EXP | +${goldReward} Gold\n` +
+            lootMessage +
             `${levelUpMessage}` +
-            "Enemy respawning in 4 seconds..."
+            "Respawning in 4 sec..."
         );
 
         this.time.delayedCall(4000, () => {
@@ -503,7 +690,7 @@ class GameScene extends Phaser.Scene {
             currentClass.mana += 5;
             currentClass.ability.damage += 3;
 
-            levelUpMessage += `${currentClass.name} leveled up to Level ${currentClass.level}!\n`;
+            levelUpMessage += `${currentClass.name} leveled up to ${currentClass.level}!\n`;
             levelUpMessage += `Damage increased to ${currentClass.ability.damage}.\n`;
         }
 
@@ -525,31 +712,46 @@ class GameScene extends Phaser.Scene {
     updateHud() {
         const currentClass = this.getCurrentClass();
 
-        this.hudText.setText(
+        this.playerHudText.setText(
             [
-                `Class: ${currentClass.name}`,
-                `Level: ${currentClass.level}`,
-                `EXP: ${currentClass.exp} / ${currentClass.expToNext}`,
+                `${currentClass.name} Lv.${currentClass.level}`,
+                `EXP: ${currentClass.exp}/${currentClass.expToNext}`,
                 `Gold: ${this.gold}`,
-                `HP: ${currentClass.currentHp} / ${currentClass.maxHp}`,
+                `HP: ${currentClass.currentHp}/${currentClass.maxHp}`,
                 `Mana: ${currentClass.mana}`,
-                `Q Main: ${currentClass.ability.name}`,
-                `E Secondary: ${currentClass.secondary.name}`,
-                `Damage: ${currentClass.ability.damage}`,
-                `Range: ${currentClass.ability.range}`,
-                `Type: ${currentClass.ability.type}`,
-                "",
-                "Enemy:",
-                this.enemyStats
-                    ? `${this.enemyStats.name} - HP ${this.enemyStats.hp}/${this.enemyStats.maxHp}`
-                    : "None",
-                "",
-                "1 = Warrior",
-                "2 = Wizard",
-                "3 = Archer",
-                "Q = Main Attack",
-                "E = Secondary / Shield",
-                "WASD = Move"
+                `Q: ${currentClass.ability.name}`,
+                `E: ${currentClass.secondary.name}`
+            ].join("\n")
+        );
+
+        this.enemyHudText.setText(
+            this.enemyStats
+                ? [
+                    "Enemy",
+                    `${this.enemyStats.name}`,
+                    `HP: ${this.enemyStats.hp}/${this.enemyStats.maxHp}`,
+                    `DMG: ${this.enemyStats.damage}`,
+                    `EXP: ${this.enemyStats.expReward}`
+                ].join("\n")
+                : "Enemy\nNone"
+        );
+
+        this.inventoryText.setText(this.getInventoryLines().join("\n"));
+
+        this.controlsText.setText(
+            [
+                "1 Warrior | 2 Wizard | 3 Archer",
+                "Q Main | E Secondary",
+                "F6 Save | F9 Load",
+                "WASD Move"
+            ].join("\n")
+        );
+
+        this.chatPlaceholderText.setText(
+            [
+                "Chat",
+                "Coming later with multiplayer",
+                "Socket.IO / server-backed"
             ].join("\n")
         );
     }
@@ -664,6 +866,14 @@ class GameScene extends Phaser.Scene {
         if (Phaser.Input.Keyboard.JustDown(this.keys.secondary)) {
             this.useSecondary();
         }
+
+        if (Phaser.Input.Keyboard.JustDown(this.keys.saveGame)) {
+            this.saveGame();
+        }
+
+        if (Phaser.Input.Keyboard.JustDown(this.keys.loadGame)) {
+            this.loadGame();
+        }
     }
 
     update() {
@@ -676,10 +886,14 @@ class GameScene extends Phaser.Scene {
 
 const config = {
     type: Phaser.AUTO,
-    width: 800,
-    height: 600,
+    width: window.innerWidth,
+    height: window.innerHeight,
     backgroundColor: "#111111",
-    scene: GameScene
+    scene: GameScene,
+    scale: {
+        mode: Phaser.Scale.RESIZE,
+        autoCenter: Phaser.Scale.CENTER_BOTH
+    }
 };
 
 new Phaser.Game(config);
