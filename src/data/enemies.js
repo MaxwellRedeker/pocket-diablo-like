@@ -1,4 +1,5 @@
 export const enemyTypes = [
+
     {
         name: "Training Goblin",
         color: 0xff0000,
@@ -13,9 +14,13 @@ export const enemyTypes = [
         damage: 8,
         lootTable: [
             { itemKey: "tornCloth", chance: 70 },
-            { itemKey: "rustyDagger", chance: 20 }
+            { itemKey: "rustyDagger", chance: 20 },
+
+            // Weapon drop
+            { itemKey: "goblinBlade", chance: 12 }
         ]
     },
+
     {
         name: "Forest Slime",
         color: 0x33cc33,
@@ -33,6 +38,7 @@ export const enemyTypes = [
             { itemKey: "greenCore", chance: 12 }
         ]
     },
+
     {
         name: "Bone Rat",
         color: 0xcccccc,
@@ -50,6 +56,7 @@ export const enemyTypes = [
             { itemKey: "ratFang", chance: 25 }
         ]
     },
+
     {
         name: "Ash Imp",
         color: 0xff8800,
@@ -64,7 +71,11 @@ export const enemyTypes = [
         damage: 14,
         lootTable: [
             { itemKey: "emberCore", chance: 30 },
-            { itemKey: "burntHorn", chance: 45 }
+            { itemKey: "burntHorn", chance: 45 },
+
+            // Rare weapon drop
+            { itemKey: "emberWand", chance: 8 }
         ]
     }
+
 ];

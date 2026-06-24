@@ -58,6 +58,7 @@ class GameScene extends Phaser.Scene {
             skillPower: "FOUR",
             skillVitality: "FIVE",
             skillUtility: "SIX",
+            equipBestWeapon: "SEVEN",
             mainAttack: "Q",
             secondary: "E",
             saveGame: "F6",
@@ -527,6 +528,40 @@ class GameScene extends Phaser.Scene {
         this.inventory[itemKey] += amount;
     }
 
+    equipBestWeapon() {
+        let bestWeaponKey = null;
+        let bestDamage = this.equipment.weapon?.damageBonus ?? 0;
+
+        for (const itemKey of Object.keys(this.inventory)) {
+            const item = this.itemTypes[itemKey];
+
+            if (!item || item.itemType !== "weapon") continue;
+
+            if (item.damageBonus > bestDamage) {
+                bestDamage = item.damageBonus;
+                bestWeaponKey = itemKey;
+            }
+        }
+
+        if (!bestWeaponKey) {
+            this.combatText.setText("No better weapon found in inventory.");
+            return;
+        }
+
+        const bestWeapon = this.itemTypes[bestWeaponKey];
+
+        this.equipment.weapon = {
+            name: bestWeapon.name,
+            damageBonus: bestWeapon.damageBonus
+        };
+
+        this.combatText.setText(
+            `Equipped ${bestWeapon.name}.\nWeapon damage bonus is now +${bestWeapon.damageBonus}.`
+        );
+
+        this.updateHud();
+    }
+
     getInventoryLines() {
         const itemKeys = Object.keys(this.inventory);
 
@@ -677,7 +712,7 @@ class GameScene extends Phaser.Scene {
             [
                 "1 Warrior | 2 Wizard | 3 Archer",
                 "Q Main | E Secondary",
-                "4/5/6 Spend Skill Point",
+                "4/5/6 Skill | 7 Equip Best Weapon",
                 "F6 Save | F9 Load",
                 "WASD Move"
             ].join("\n")
@@ -805,6 +840,10 @@ class GameScene extends Phaser.Scene {
 
         if (Phaser.Input.Keyboard.JustDown(this.keys.skillUtility)) {
             this.spendSkillPoint("utility");
+        }
+
+        if (Phaser.Input.Keyboard.JustDown(this.keys.equipBestWeapon)) {
+        this.equipBestWeapon();
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.keys.mainAttack)) {
