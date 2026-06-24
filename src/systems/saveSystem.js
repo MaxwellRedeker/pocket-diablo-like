@@ -1,3 +1,4 @@
+import Phaser from "phaser";
 export const SAVE_KEY = "pocketDiabloSave_v1";
 
 export function createSaveData(scene) {

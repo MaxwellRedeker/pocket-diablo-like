@@ -1,10 +1,10 @@
 import { saveGame, loadGame } from "./systems/saveSystem.js";
+import { dropEnemyLoot, updateGroundLootPickup } from "./systems/lootSystem.js";
 import Phaser from "phaser";
-import {itemTypes} from "./data/items.js";
+import { itemTypes } from "./data/items.js";
 import { enemyTypes } from "./data/enemies.js";
 import { playerClasses } from "./data/classes.js";
-
-
+import { equipmentSlots } from "./data/equipmentSlots.js";
 
 class GameScene extends Phaser.Scene {
     constructor() {
@@ -21,13 +21,12 @@ class GameScene extends Phaser.Scene {
         this.maxEnemies = 6;
         this.gold = 0;
         this.inventory = {};
+        this.equipment = structuredClone(equipmentSlots);
+        this.groundLoot = [];
 
         this.itemTypes = itemTypes;
-
         this.classes = structuredClone(playerClasses);
-
         this.enemyTypes = enemyTypes;
-
         this.currentClassKey = "wizard";
 
         this.createWorldGrid();
@@ -39,6 +38,11 @@ class GameScene extends Phaser.Scene {
             40,
             this.getCurrentClass().color
         );
+
+        this.equipment.weapon = {
+            name: "Training Sword",
+            damageBonus: 3
+        };
 
         this.cursors = this.input.keyboard.addKeys({
             up: "W",
@@ -170,6 +174,10 @@ class GameScene extends Phaser.Scene {
 
     loadGame() {
         loadGame(this);
+    }
+
+    getWeaponDamageBonus() {
+        return this.equipment.weapon?.damageBonus ?? 0;
     }
 
     createWorldGrid() {
@@ -339,6 +347,7 @@ class GameScene extends Phaser.Scene {
     useMainAttack() {
         const currentClass = this.getCurrentClass();
         const ability = currentClass.ability;
+        const totalDamage = ability.damage + this.getWeaponDamageBonus();
 
         const targetEnemy = this.getNearestEnemy(ability.range);
 
@@ -348,16 +357,16 @@ class GameScene extends Phaser.Scene {
         }
 
         if (ability.projectile) {
-            this.fireProjectile(currentClass, ability, targetEnemy);
+            this.fireProjectile(currentClass, ability, targetEnemy, totalDamage);
             return;
         }
 
-        targetEnemy.stats.hp -= ability.damage;
+        targetEnemy.stats.hp -= totalDamage;
         this.showAttackFlash(ability.range);
 
         this.combatText.setText(
             `${currentClass.name} used ${ability.name}.\n` +
-            `${ability.damage} ${ability.type} damage.`
+            `${totalDamage} ${ability.type} damage.`
         );
 
         if (targetEnemy.stats.hp <= 0) {
@@ -399,7 +408,7 @@ class GameScene extends Phaser.Scene {
         });
     }
 
-    fireProjectile(currentClass, ability, targetEnemy) {
+    fireProjectile(currentClass, ability, targetEnemy, totalDamage) {
         const angle = Phaser.Math.Angle.Between(
             this.player.x,
             this.player.y,
@@ -415,7 +424,7 @@ class GameScene extends Phaser.Scene {
         );
 
         projectile.projectileInfo = {
-            damage: ability.damage,
+            damage: totalDamage,
             type: ability.type,
             name: ability.name,
             className: currentClass.name,
@@ -429,7 +438,10 @@ class GameScene extends Phaser.Scene {
 
         this.projectiles.push(projectile);
 
-        this.combatText.setText(`${currentClass.name} fired ${ability.name}.`);
+        this.combatText.setText(
+            `${currentClass.name} fired ${ability.name}.\n` +
+            `Damage: ${totalDamage}`
+        );
     }
 
     updateProjectiles() {
@@ -546,7 +558,7 @@ class GameScene extends Phaser.Scene {
 
         this.gold += goldReward;
 
-        const foundItems = this.rollEnemyLoot(enemyObj);
+        const foundItems = dropEnemyLoot(this, enemyObj);
         const lootMessage =
             foundItems.length > 0
                 ? `Loot: ${foundItems.join(", ")}.\n`
@@ -636,6 +648,8 @@ class GameScene extends Phaser.Scene {
                 `Mana: ${currentClass.mana}`,
                 `Q: ${currentClass.ability.name}`,
                 `E: ${currentClass.secondary.name}`,
+                `Weapon: ${this.equipment.weapon?.name ?? "None"}`,
+                `Weapon DMG: +${this.getWeaponDamageBonus()}`,
                 "",
                 "Skills",
                 `4 ${currentClass.skills.power.name}: ${currentClass.skills.power.level}/${currentClass.skills.power.maxLevel}`,
@@ -814,6 +828,7 @@ class GameScene extends Phaser.Scene {
         this.updatePlayerMovement();
         this.updateEnemyAi();
         this.updateProjectiles();
+        updateGroundLootPickup(this);
         this.updateControls();
     }
 }
