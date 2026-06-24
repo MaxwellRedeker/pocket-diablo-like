@@ -26,5 +26,40 @@ emberWand: {
     rarity: "rare",
     itemType: "weapon",
     damageBonus: 10
+},
+
+clothCap: {
+    name: "Cloth Cap",
+    rarity: "common",
+    itemType: "armor",
+    slot: "helmet",
+    armorBonus: 2
+},
+
+goblinVest: {
+    name: "Goblin Vest",
+    rarity: "uncommon",
+    itemType: "armor",
+    slot: "chest",
+    armorBonus: 5
+},
+
+ratHideBoots: {
+    name: "Rat-Hide Boots",
+    rarity: "uncommon",
+    itemType: "armor",
+    slot: "boots",
+    armorBonus: 3,
+    speedBonus: 0.3
+},
+
+emberGloves: {
+    name: "Ember Gloves",
+    rarity: "rare",
+    itemType: "armor",
+    slot: "gloves",
+    armorBonus: 4,
+    damageBonus: 2
 }
+
 };

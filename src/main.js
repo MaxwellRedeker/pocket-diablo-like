@@ -5,6 +5,7 @@ import { itemTypes } from "./data/items.js";
 import { enemyTypes } from "./data/enemies.js";
 import { playerClasses } from "./data/classes.js";
 import { equipmentSlots } from "./data/equipmentSlots.js";
+import { rarityStyles } from "./data/rarities.js";
 
 class GameScene extends Phaser.Scene {
     constructor() {
@@ -25,11 +26,16 @@ class GameScene extends Phaser.Scene {
         this.groundLoot = [];
 
         this.itemTypes = itemTypes;
+        this.rarityStyles = rarityStyles;
         this.classes = structuredClone(playerClasses);
         this.enemyTypes = enemyTypes;
         this.currentClassKey = "wizard";
 
         this.createWorldGrid();
+        
+        this.inventoryOpen = false;
+
+        this.inventorySelection = 0;
 
         this.player = this.add.rectangle(
             400,
@@ -59,6 +65,11 @@ class GameScene extends Phaser.Scene {
             skillVitality: "FIVE",
             skillUtility: "SIX",
             equipBestWeapon: "SEVEN",
+            equipBestArmor: "EIGHT",
+            inventory: "I",
+            inventoryUp: "UP",
+            inventoryDown: "DOWN",
+            inventorySelect: "ENTER",
             mainAttack: "Q",
             secondary: "E",
             saveGame: "F6",
@@ -93,6 +104,16 @@ class GameScene extends Phaser.Scene {
         });
         this.enemyHudText.setScrollFactor(0);
 
+        this.inventoryText = this.add.text(600, 20, "", {
+            fontSize: "16px",
+            color: "#ffffff",
+            backgroundColor: "#111111",
+            padding: { x: 10, y: 10 }
+        });
+
+        this.inventoryText.setScrollFactor(0);
+        this.inventoryText.setVisible(false);
+
         this.combatText = this.add.text(14, 14, "", {
             fontSize: "18px",
             color: "#ffff99",
@@ -100,15 +121,6 @@ class GameScene extends Phaser.Scene {
             padding: { x: 8, y: 6 }
         });
         this.combatText.setScrollFactor(0);
-
-        this.inventoryText = this.add.text(14, 14, "", {
-            fontSize: "18px",
-            color: "#ccffcc",
-            backgroundColor: "#00000088",
-            padding: { x: 8, y: 6 },
-            align: "right"
-        });
-        this.inventoryText.setScrollFactor(0);
 
         this.controlsText = this.add.text(14, 14, "", {
             fontSize: "16px",
@@ -148,7 +160,7 @@ class GameScene extends Phaser.Scene {
         this.inventoryText?.setPosition(width - 14, height - 14).setOrigin(1, 1);
         this.combatText?.setPosition(14, height - 120).setOrigin(0, 0);
         this.controlsText?.setPosition(14, height - 14).setOrigin(0, 1);
-        this.chatPlaceholderText?.setPosition(width - 14, height - 170).setOrigin(1, 1);
+        this.chatPlaceholderText?.setPosition(width - 14, height - 260).setOrigin(1, 1);
     }
 
     ensureClassProgressionFields() {
@@ -179,6 +191,26 @@ class GameScene extends Phaser.Scene {
 
     getWeaponDamageBonus() {
         return this.equipment.weapon?.damageBonus ?? 0;
+    }
+
+    getTotalArmorBonus() {
+        let totalArmor = 0;
+
+        for (const item of Object.values(this.equipment)) {
+            totalArmor += item?.armorBonus ?? 0;
+        }
+
+        return totalArmor;
+    }
+
+    getEquipmentDamageBonus() {
+        let totalDamage = 0;
+
+        for (const item of Object.values(this.equipment)) {
+            totalDamage += item?.damageBonus ?? 0;
+        }
+
+        return totalDamage;
     }
 
     createWorldGrid() {
@@ -348,7 +380,7 @@ class GameScene extends Phaser.Scene {
     useMainAttack() {
         const currentClass = this.getCurrentClass();
         const ability = currentClass.ability;
-        const totalDamage = ability.damage + this.getWeaponDamageBonus();
+        const totalDamage = ability.damage + this.getEquipmentDamageBonus();
 
         const targetEnemy = this.getNearestEnemy(ability.range);
 
@@ -562,22 +594,172 @@ class GameScene extends Phaser.Scene {
         this.updateHud();
     }
 
-    getInventoryLines() {
-        const itemKeys = Object.keys(this.inventory);
+    equipBestArmor() {
+    const armorSlots = ["helmet", "chest", "gloves", "boots"];
 
-        if (itemKeys.length === 0) {
-            return ["Inventory: Empty"];
+    let equippedCount = 0;
+
+    for (const slot of armorSlots) {
+        let bestItem = null;
+
+        for (const itemKey of Object.keys(this.inventory)) {
+            const item = this.itemTypes[itemKey];
+
+            if (!item) continue;
+            if (item.itemType !== "armor") continue;
+            if (item.slot !== slot) continue;
+
+            if (
+                !bestItem ||
+                (item.armorBonus ?? 0) > (bestItem.armorBonus ?? 0)
+            ) {
+                bestItem = item;
+            }
         }
 
-        return [
-            "Inventory",
-            ...itemKeys.slice(0, 6).map((itemKey) => {
-                const item = this.itemTypes[itemKey];
-                return `${item.name} x${this.inventory[itemKey]}`;
-            }),
-            itemKeys.length > 6 ? `+${itemKeys.length - 6} more items` : ""
-        ].filter(Boolean);
+        if (bestItem) {
+            this.equipment[slot] = {
+                name: bestItem.name,
+                armorBonus: bestItem.armorBonus ?? 0,
+                damageBonus: bestItem.damageBonus ?? 0,
+                speedBonus: bestItem.speedBonus ?? 0
+            };
+
+            equippedCount++;
+        }
     }
+
+    if (equippedCount === 0) {
+        this.combatText.setText("No armor found in inventory.");
+        return;
+    }
+
+    this.combatText.setText(
+        `Equipped ${equippedCount} armor pieces.\nArmor is now +${this.getTotalArmorBonus()}.`
+    );
+
+    this.updateHud();
+    }
+
+    toggleInventory() {
+    this.inventoryOpen = !this.inventoryOpen;
+
+    console.log("Inventory toggled:", this.inventoryOpen);
+
+    if (!this.inventoryOpen) {
+        this.inventoryText.setVisible(false);
+        return;
+    }
+
+    this.inventoryText.setText(
+        this.getInventoryLines().join("\n")
+    );
+
+    this.inventoryText.setVisible(true);
+    }
+
+equipSelectedInventoryItem() {
+    const itemKeys = Object.keys(this.inventory);
+
+    if (itemKeys.length === 0) {
+        return;
+    }
+
+    const itemKey = itemKeys[this.inventorySelection];
+    const item = this.itemTypes[itemKey];
+
+    if (!item) {
+        return;
+    }
+
+    if (item.itemType === "weapon") {
+        this.equipment.weapon = {
+            name: item.name,
+            damageBonus: item.damageBonus ?? 0
+        };
+
+        this.combatText.setText(`Equipped ${item.name}`);
+        this.updateHud();
+        return;
+    }
+
+    if (item.itemType === "armor" && item.slot) {
+        this.equipment[item.slot] = {
+            name: item.name,
+            armorBonus: item.armorBonus ?? 0,
+            damageBonus: item.damageBonus ?? 0,
+            speedBonus: item.speedBonus ?? 0
+        };
+
+        this.combatText.setText(`Equipped ${item.name}`);
+        this.updateHud();
+        return;
+    }
+
+    this.combatText.setText(`${item.name} cannot be equipped.`);
+}
+
+getInventoryLines() {
+    const itemKeys = Object.keys(this.inventory);
+
+    const lines = ["Inventory", ""];
+
+    if (itemKeys.length === 0) {
+        lines.push("Inventory Empty");
+    } else {
+
+        itemKeys.slice(0, 10).forEach((itemKey, index) => {
+            const item = this.itemTypes[itemKey];
+
+            const prefix =
+                index === this.inventorySelection
+                    ? "> "
+                    : "  ";
+
+            const rarity =
+                this.rarityStyles[item.rarity] ??
+                this.rarityStyles.common;
+
+            lines.push(
+            `${prefix}[${rarity.label}] ${item.name} x${this.inventory[itemKey]}`
+            );
+        });
+
+        if (itemKeys.length > 10) {
+            lines.push(
+                `+${itemKeys.length - 10} more items`
+            );
+        }
+    }
+
+    lines.push("");
+    lines.push("----------------");
+    lines.push("");
+    lines.push("Equipped");
+    lines.push("");
+
+    lines.push(
+        `Weapon: ${this.equipment.weapon?.name ?? "None"}`
+    );
+
+    lines.push(
+        `Helmet: ${this.equipment.helmet?.name ?? "None"}`
+    );
+
+    lines.push(
+        `Chest: ${this.equipment.chest?.name ?? "None"}`
+    );
+
+    lines.push(
+        `Gloves: ${this.equipment.gloves?.name ?? "None"}`
+    );
+
+    lines.push(
+        `Boots: ${this.equipment.boots?.name ?? "None"}`
+    );
+
+    return lines;
+}
 
     showAttackFlash(range) {
         const flash = this.add.circle(this.player.x, this.player.y, range, 0xffffff, 0.12);
@@ -685,6 +867,8 @@ class GameScene extends Phaser.Scene {
                 `E: ${currentClass.secondary.name}`,
                 `Weapon: ${this.equipment.weapon?.name ?? "None"}`,
                 `Weapon DMG: +${this.getWeaponDamageBonus()}`,
+                `Armor: +${this.getTotalArmorBonus()}`,
+                `Gear DMG: +${this.getEquipmentDamageBonus()}`,
                 "",
                 "Skills",
                 `4 ${currentClass.skills.power.name}: ${currentClass.skills.power.level}/${currentClass.skills.power.maxLevel}`,
@@ -706,13 +890,17 @@ class GameScene extends Phaser.Scene {
                 : "Enemy\nNone"
         );
 
-        this.inventoryText.setText(this.getInventoryLines().join("\n"));
+        if (this.inventoryOpen) {
+            this.inventoryText.setText(
+            this.getInventoryLines().join("\n")
+        );
+    }
 
         this.controlsText.setText(
             [
                 "1 Warrior | 2 Wizard | 3 Archer",
                 "Q Main | E Secondary",
-                "4/5/6 Skill | 7 Equip Best Weapon",
+                "4/5/6 Skill | 7 Weapon | 8 Armor | I Inventory",
                 "F6 Save | F9 Load",
                 "WASD Move"
             ].join("\n")
@@ -780,10 +968,14 @@ class GameScene extends Phaser.Scene {
     enemyAttackPlayer(enemyObj, currentClass) {
         if (enemyObj.attackCooldown) return;
 
-        currentClass.currentHp -= enemyObj.stats.damage;
+        const armorReduction = this.getTotalArmorBonus();
+        const finalDamage = Math.max(1, enemyObj.stats.damage - armorReduction);
+
+        currentClass.currentHp -= finalDamage;
 
         this.combatText.setText(
-            `${enemyObj.stats.name} hit ${currentClass.name} for ${enemyObj.stats.damage} damage.`
+            `${enemyObj.stats.name} hit ${currentClass.name} for ${finalDamage} damage.\n` +
+            `Armor blocked ${armorReduction}.`
         );
 
         if (currentClass.currentHp <= 0) {
@@ -843,7 +1035,54 @@ class GameScene extends Phaser.Scene {
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.keys.equipBestWeapon)) {
-        this.equipBestWeapon();
+            this.equipBestWeapon();
+        }
+
+        if (Phaser.Input.Keyboard.JustDown(this.keys.equipBestArmor)) {
+        this.equipBestArmor();
+        }
+
+        if (Phaser.Input.Keyboard.JustDown(this.keys.inventory)) {
+        this.toggleInventory();
+        }
+
+        if (
+        this.inventoryOpen &&
+        Phaser.Input.Keyboard.JustDown(this.keys.inventoryUp)
+        ) {
+        this.inventorySelection--;
+
+        if (this.inventorySelection < 0) {
+        this.inventorySelection = 0;
+        }
+
+        this.updateHud();
+        }
+
+        if (
+        this.inventoryOpen &&
+        Phaser.Input.Keyboard.JustDown(this.keys.inventoryDown)
+        ) {
+        const maxIndex =
+        Math.max(
+            0,
+            Object.keys(this.inventory).length - 1
+        );
+
+        this.inventorySelection++;
+
+        if (this.inventorySelection > maxIndex) {
+        this.inventorySelection = maxIndex;
+        }
+
+        this.updateHud();
+        }
+
+        if (
+        this.inventoryOpen &&
+        Phaser.Input.Keyboard.JustDown(this.keys.inventorySelect)
+        ) {
+        this.equipSelectedInventoryItem();
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.keys.mainAttack)) {

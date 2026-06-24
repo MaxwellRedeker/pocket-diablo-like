@@ -8,21 +8,24 @@ export function dropEnemyLoot(scene, enemyObj) {
 
         if (roll <= drop.chance) {
             const item = scene.itemTypes[drop.itemKey];
+            const rarity =
+                scene.rarityStyles[item.rarity] ??
+                scene.rarityStyles.common;
 
             const lootShape = scene.add.circle(
                 enemyObj.shape.x + Phaser.Math.Between(-25, 25),
                 enemyObj.shape.y + Phaser.Math.Between(-25, 25),
                 10,
-                0xffdd55
+                rarity.worldColor
             );
 
             const lootText = scene.add.text(
                 lootShape.x - 30,
                 lootShape.y - 30,
-                item.name,
+                `[${rarity.label}] ${item.name}`,
                 {
                     fontSize: "14px",
-                    color: "#ffffaa",
+                    color: rarity.textColor,
                     backgroundColor: "#00000088",
                     padding: { x: 4, y: 2 }
                 }
@@ -55,8 +58,14 @@ export function updateGroundLootPickup(scene) {
         if (distance <= 45) {
             scene.addItemToInventory(loot.itemKey, 1);
 
-            const itemName = scene.itemTypes[loot.itemKey].name;
-            scene.combatText.setText(`Picked up ${itemName}.`);
+            const item = scene.itemTypes[loot.itemKey];
+            const rarity =
+                scene.rarityStyles[item.rarity] ??
+                scene.rarityStyles.common;
+
+            scene.combatText.setText(
+                `Picked up [${rarity.label}] ${item.name}.`
+            );
 
             loot.shape.destroy();
             loot.text.destroy();

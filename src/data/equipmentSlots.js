@@ -3,6 +3,7 @@ export const equipmentSlots = {
     shield: null,
     helmet: null,
     chest: null,
+    gloves: null,
     boots: null,
     ring: null
 };

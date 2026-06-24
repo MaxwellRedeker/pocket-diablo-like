@@ -15,6 +15,8 @@ export const enemyTypes = [
         lootTable: [
             { itemKey: "tornCloth", chance: 70 },
             { itemKey: "rustyDagger", chance: 20 },
+            { itemKey: "clothCap", chance: 18 },
+            { itemKey: "goblinVest", chance: 10 },
 
             // Weapon drop
             { itemKey: "goblinBlade", chance: 12 }
@@ -53,7 +55,8 @@ export const enemyTypes = [
         damage: 10,
         lootTable: [
             { itemKey: "boneShard", chance: 75 },
-            { itemKey: "ratFang", chance: 25 }
+            { itemKey: "ratFang", chance: 25 },
+            { itemKey: "ratHideBoots", chance: 12 }
         ]
     },
 
@@ -72,6 +75,7 @@ export const enemyTypes = [
         lootTable: [
             { itemKey: "emberCore", chance: 30 },
             { itemKey: "burntHorn", chance: 45 },
+            { itemKey: "emberGloves", chance: 8 },
 
             // Rare weapon drop
             { itemKey: "emberWand", chance: 8 }
