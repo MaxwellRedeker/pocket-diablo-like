@@ -279,7 +279,8 @@ class GameScene extends Phaser.Scene {
         const stats = {
             ...enemyTemplate,
             maxHp: enemyTemplate.hp,
-            alive: true
+            alive: true,
+            activeEffects: []
         };
 
         const hpText = this.add.text(shape.x - 45, shape.y - 50, "", {
@@ -476,7 +477,41 @@ class GameScene extends Phaser.Scene {
             `Damage: ${totalDamage}`
         );
     }
+    updateStatusEffects() {
+        const now = this.time.now;
 
+        for (const enemyObj of this.getAliveEnemies()) {
+            const effects = enemyObj.stats.activeEffects ?? [];
+
+            for (let i = effects.length - 1; i >= 0; i--) {
+                const effect = effects[i];
+
+                if (now >= effect.expiresAt) {
+                    effects.splice(i, 1);
+                    continue;
+                }
+
+                if (now >= effect.nextTickAt) {
+                    enemyObj.stats.hp -= effect.damagePerTick;
+                    effect.nextTickAt = now + effect.tickRateMs;
+
+                    this.combatText.setText(
+                        `${enemyObj.stats.name} suffers ${effect.damagePerTick} ${effect.type} damage.`
+                    );
+
+                    if (enemyObj.stats.hp <= 0) {
+                        enemyObj.stats.hp = 0;
+                        this.killEnemy(enemyObj);
+                        break;
+                    }
+
+                    this.updateSingleEnemyHud(enemyObj);
+                }
+            }
+
+            enemyObj.stats.activeEffects = effects;
+        }
+    }
     updateProjectiles() {
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
             const projectile = this.projectiles[i];
@@ -707,7 +742,6 @@ getInventoryLines() {
     if (itemKeys.length === 0) {
         lines.push("Inventory Empty");
     } else {
-
         itemKeys.slice(0, 10).forEach((itemKey, index) => {
             const item = this.itemTypes[itemKey];
 
@@ -721,7 +755,7 @@ getInventoryLines() {
                 this.rarityStyles.common;
 
             lines.push(
-            `${prefix}[${rarity.label}] ${item.name} x${this.inventory[itemKey]}`
+                `${prefix}[${rarity.label}] ${item.name} x${this.inventory[itemKey]}`
             );
         });
 
@@ -729,6 +763,50 @@ getInventoryLines() {
             lines.push(
                 `+${itemKeys.length - 10} more items`
             );
+        }
+    }
+
+    lines.push("");
+    lines.push("----------------");
+    lines.push("");
+    lines.push("Selected Item");
+    lines.push("");
+
+    if (itemKeys.length === 0) {
+        lines.push("None");
+    } else {
+        const selectedItemKey = itemKeys[this.inventorySelection];
+        const selectedItem = this.itemTypes[selectedItemKey];
+
+        if (selectedItem) {
+            const rarity =
+                this.rarityStyles[selectedItem.rarity] ??
+                this.rarityStyles.common;
+
+            lines.push(selectedItem.name);
+            lines.push(`Rarity: ${rarity.label}`);
+            lines.push(`Type: ${selectedItem.itemType ?? "material"}`);
+
+            if (selectedItem.slot) {
+                lines.push(`Slot: ${selectedItem.slot}`);
+            }
+
+            if (selectedItem.damageBonus) {
+                lines.push(`Damage: +${selectedItem.damageBonus}`);
+            }
+
+            if (selectedItem.armorBonus) {
+                lines.push(`Armor: +${selectedItem.armorBonus}`);
+            }
+
+            if (selectedItem.speedBonus) {
+                lines.push(`Speed: +${selectedItem.speedBonus}`);
+            }
+
+            if (selectedItem.description) {
+                lines.push("");
+                lines.push(selectedItem.description);
+            }
         }
     }
 
