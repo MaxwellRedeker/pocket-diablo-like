@@ -396,6 +396,8 @@ class GameScene extends Phaser.Scene {
         }
 
         targetEnemy.stats.hp -= totalDamage;
+        this.applyEquipmentEffectsToEnemy(enemyObj);
+        this.applyEquipmentEffectsToEnemy(targetEnemy);
         this.showAttackFlash(ability.range);
 
         this.combatText.setText(
@@ -477,6 +479,51 @@ class GameScene extends Phaser.Scene {
             `Damage: ${totalDamage}`
         );
     }
+
+    applyEquipmentEffectsToEnemy(enemyObj) {
+    const equippedItems = Object.values(this.equipment).filter(Boolean);
+    const now = this.time.now;
+
+    for (const item of equippedItems) {
+        const effects = item.effects ?? [];
+
+        for (const effect of effects) {
+            const roll = Phaser.Math.Between(1, 100);
+
+            if (roll > effect.chance) {
+                continue;
+            }
+
+            if (effect.type === "bleedChance") {
+                enemyObj.stats.activeEffects.push({
+                    type: "bleed",
+                    damagePerTick: effect.damagePerTick,
+                    tickRateMs: 1000,
+                    nextTickAt: now + 1000,
+                    expiresAt: now + effect.durationMs
+                });
+
+                this.combatText.setText(
+                    `${enemyObj.stats.name} is bleeding.`
+                );
+            }
+
+            if (effect.type === "burnChance") {
+                enemyObj.stats.activeEffects.push({
+                    type: "burn",
+                    damagePerTick: effect.damagePerTick,
+                    tickRateMs: 1000,
+                    nextTickAt: now + 1000,
+                    expiresAt: now + effect.durationMs
+                });
+
+                this.combatText.setText(
+                    `${enemyObj.stats.name} is burning.`
+                );
+            }
+        }
+    }
+}
     updateStatusEffects() {
         const now = this.time.now;
 
@@ -541,6 +588,7 @@ class GameScene extends Phaser.Scene {
 
                 if (distanceToEnemy <= hitRange) {
                     enemyObj.stats.hp -= info.damage;
+                    this.applyEquipmentEffectsToEnemy(enemyObj);
 
                     this.combatText.setText(
                         `${info.name} hit ${enemyObj.stats.name}.\n` +
@@ -619,7 +667,8 @@ class GameScene extends Phaser.Scene {
 
         this.equipment.weapon = {
             name: bestWeapon.name,
-            damageBonus: bestWeapon.damageBonus
+            damageBonus: bestWeapon.damageBonus,
+            effects: bestWeapon.effects ?? []
         };
 
         this.combatText.setText(
@@ -710,7 +759,8 @@ equipSelectedInventoryItem() {
     if (item.itemType === "weapon") {
         this.equipment.weapon = {
             name: item.name,
-            damageBonus: item.damageBonus ?? 0
+            damageBonus: item.damageBonus ?? 0,
+            effects: item.effects ?? []
         };
 
         this.combatText.setText(`Equipped ${item.name}`);
@@ -915,9 +965,12 @@ getInventoryLines() {
     updateSingleEnemyHud(enemyObj) {
         if (!enemyObj.hpText || !enemyObj.stats) return;
 
+        const activeEffects =
+            enemyObj.stats.activeEffects?.map((effect) => effect.type).join(", ") || "none";
+
         enemyObj.hpText.setText(
-            `${enemyObj.stats.name}\nHP: ${enemyObj.stats.hp} / ${enemyObj.stats.maxHp}`
-        );
+            `${enemyObj.stats.name}\nHP: ${enemyObj.stats.hp} / ${enemyObj.stats.maxHp}\nEffects: ${activeEffects}`
+);
 
         enemyObj.hpText.x = enemyObj.shape.x - 45;
         enemyObj.hpText.y = enemyObj.shape.y - 50;
@@ -1184,6 +1237,7 @@ getInventoryLines() {
         this.updatePlayerMovement();
         this.updateEnemyAi();
         this.updateProjectiles();
+        this.updateStatusEffects();
         updateGroundLootPickup(this);
         this.updateControls();
     }
