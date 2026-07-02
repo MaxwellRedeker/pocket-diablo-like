@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { generateItem } from "./itemGenerator.js";
 
 export function dropEnemyLoot(scene, enemyObj) {
     const droppedItems = [];
@@ -7,7 +8,9 @@ export function dropEnemyLoot(scene, enemyObj) {
         const roll = Phaser.Math.Between(1, 100);
 
         if (roll <= drop.chance) {
-            const item = scene.itemTypes[drop.itemKey];
+            const baseItem = scene.itemTypes[drop.itemKey];
+            const item = generateItem(baseItem);
+
             const rarity =
                 scene.rarityStyles[item.rarity] ??
                 scene.rarityStyles.common;
@@ -33,6 +36,7 @@ export function dropEnemyLoot(scene, enemyObj) {
 
             scene.groundLoot.push({
                 itemKey: drop.itemKey,
+                item,
                 shape: lootShape,
                 text: lootText
             });
@@ -56,9 +60,10 @@ export function updateGroundLootPickup(scene) {
         );
 
         if (distance <= 45) {
-            scene.addItemToInventory(loot.itemKey, 1);
+            scene.addGeneratedItemToInventory(loot.itemKey, loot.item);
 
-            const item = scene.itemTypes[loot.itemKey];
+            const item = loot.item;
+
             const rarity =
                 scene.rarityStyles[item.rarity] ??
                 scene.rarityStyles.common;

@@ -396,7 +396,13 @@ class GameScene extends Phaser.Scene {
         }
 
         targetEnemy.stats.hp -= totalDamage;
-        this.applyEquipmentEffectsToEnemy(enemyObj);
+        this.showFloatingText(
+            targetEnemy.shape.x,
+            targetEnemy.shape.y - 40,
+            `-${totalDamage}`,
+            "#ffffff"
+        );
+        
         this.applyEquipmentEffectsToEnemy(targetEnemy);
         this.showAttackFlash(ability.range);
 
@@ -494,33 +500,51 @@ class GameScene extends Phaser.Scene {
                 continue;
             }
 
-            if (effect.type === "bleedChance") {
-                enemyObj.stats.activeEffects.push({
-                    type: "bleed",
-                    damagePerTick: effect.damagePerTick,
-                    tickRateMs: 1000,
-                    nextTickAt: now + 1000,
-                    expiresAt: now + effect.durationMs
-                });
+if (effect.type === "bleedChance") {
 
-                this.combatText.setText(
-                    `${enemyObj.stats.name} is bleeding.`
-                );
-            }
+    const existingBleed = enemyObj.stats.activeEffects.find(
+        (activeEffect) => activeEffect.type === "bleed"
+    );
 
-            if (effect.type === "burnChance") {
-                enemyObj.stats.activeEffects.push({
-                    type: "burn",
-                    damagePerTick: effect.damagePerTick,
-                    tickRateMs: 1000,
-                    nextTickAt: now + 1000,
-                    expiresAt: now + effect.durationMs
-                });
+    if (existingBleed) {
+        existingBleed.expiresAt = now + effect.durationMs;
+    } else {
+        enemyObj.stats.activeEffects.push({
+            type: "bleed",
+            damagePerTick: effect.damagePerTick,
+            tickRateMs: 1000,
+            nextTickAt: now + 1000,
+            expiresAt: now + effect.durationMs
+        });
+    }
 
-                this.combatText.setText(
-                    `${enemyObj.stats.name} is burning.`
-                );
-            }
+    this.combatText.setText(
+        `${enemyObj.stats.name} is bleeding.`
+    );
+}
+
+if (effect.type === "burnChance") {
+
+    const existingBurn = enemyObj.stats.activeEffects.find(
+        (activeEffect) => activeEffect.type === "burn"
+    );
+
+    if (existingBurn) {
+        existingBurn.expiresAt = now + effect.durationMs;
+    } else {
+        enemyObj.stats.activeEffects.push({
+            type: "burn",
+            damagePerTick: effect.damagePerTick,
+            tickRateMs: 1000,
+            nextTickAt: now + 1000,
+            expiresAt: now + effect.durationMs
+        });
+    }
+
+    this.combatText.setText(
+        `${enemyObj.stats.name} is burning.`
+    );
+}
         }
     }
 }
@@ -544,6 +568,13 @@ class GameScene extends Phaser.Scene {
 
                     this.combatText.setText(
                         `${enemyObj.stats.name} suffers ${effect.damagePerTick} ${effect.type} damage.`
+                    );
+
+                    this.showFloatingText(
+                        enemyObj.shape.x,
+                        enemyObj.shape.y - 65,
+                        `-${effect.damagePerTick} ${effect.type}`,
+                        effect.type === "burn" ? "#ff8800" : "#aa2222"
                     );
 
                     if (enemyObj.stats.hp <= 0) {
@@ -588,6 +619,12 @@ class GameScene extends Phaser.Scene {
 
                 if (distanceToEnemy <= hitRange) {
                     enemyObj.stats.hp -= info.damage;
+                    this.showFloatingText(
+                        enemyObj.shape.x,
+                        enemyObj.shape.y - 40,
+                        `-${info.damage}`,
+                        "#ffffff"
+                    );
                     this.applyEquipmentEffectsToEnemy(enemyObj);
 
                     this.combatText.setText(
@@ -635,50 +672,81 @@ class GameScene extends Phaser.Scene {
         return foundItems;
     }
 
-    addItemToInventory(itemKey, amount) {
-        if (!this.inventory[itemKey]) {
-            this.inventory[itemKey] = 0;
-        }
+getInventoryItemForKey(itemKey) {
+    const inventoryEntry = this.inventory[itemKey];
 
-        this.inventory[itemKey] += amount;
+    if (inventoryEntry && typeof inventoryEntry === "object") {
+        return inventoryEntry;
     }
 
-    equipBestWeapon() {
-        let bestWeaponKey = null;
-        let bestDamage = this.equipment.weapon?.damageBonus ?? 0;
+    return this.itemTypes[itemKey];
+}
 
-        for (const itemKey of Object.keys(this.inventory)) {
-            const item = this.itemTypes[itemKey];
+getInventoryQuantityForKey(itemKey) {
+    const inventoryEntry = this.inventory[itemKey];
 
-            if (!item || item.itemType !== "weapon") continue;
-
-            if (item.damageBonus > bestDamage) {
-                bestDamage = item.damageBonus;
-                bestWeaponKey = itemKey;
-            }
-        }
-
-        if (!bestWeaponKey) {
-            this.combatText.setText("No better weapon found in inventory.");
-            return;
-        }
-
-        const bestWeapon = this.itemTypes[bestWeaponKey];
-
-        this.equipment.weapon = {
-            name: bestWeapon.name,
-            damageBonus: bestWeapon.damageBonus,
-            effects: bestWeapon.effects ?? []
-        };
-
-        this.combatText.setText(
-            `Equipped ${bestWeapon.name}.\nWeapon damage bonus is now +${bestWeapon.damageBonus}.`
-        );
-
-        this.updateHud();
+    if (inventoryEntry && typeof inventoryEntry === "object") {
+        return inventoryEntry.quantity ?? 1;
     }
 
-    equipBestArmor() {
+    return inventoryEntry ?? 0;
+}
+
+addItemToInventory(itemKey, amount) {
+    if (!this.inventory[itemKey]) {
+        this.inventory[itemKey] = 0;
+    }
+
+    this.inventory[itemKey] += amount;
+}
+
+addGeneratedItemToInventory(itemKey, item) {
+    const inventoryKey =
+        `${itemKey}_${Date.now()}_${Phaser.Math.Between(1000, 9999)}`;
+
+    this.inventory[inventoryKey] = {
+        baseItemKey: itemKey,
+        ...item,
+        quantity: 1
+    };
+}
+
+equipBestWeapon() {
+    let bestWeaponKey = null;
+    let bestDamage = this.equipment.weapon?.damageBonus ?? 0;
+
+    for (const itemKey of Object.keys(this.inventory)) {
+        const item = this.getInventoryItemForKey(itemKey);
+
+        if (!item || item.itemType !== "weapon") continue;
+
+        if ((item.damageBonus ?? 0) > bestDamage) {
+            bestDamage = item.damageBonus ?? 0;
+            bestWeaponKey = itemKey;
+        }
+    }
+
+    if (!bestWeaponKey) {
+        this.combatText.setText("No better weapon found in inventory.");
+        return;
+    }
+
+    const bestWeapon = this.getInventoryItemForKey(bestWeaponKey);
+
+    this.equipment.weapon = {
+        name: bestWeapon.name,
+        damageBonus: bestWeapon.damageBonus ?? 0,
+        effects: bestWeapon.effects ?? []
+    };
+
+    this.combatText.setText(
+        `Equipped ${bestWeapon.name}.\nWeapon damage bonus is now +${bestWeapon.damageBonus ?? 0}.`
+    );
+
+    this.updateHud();
+}
+
+equipBestArmor() {
     const armorSlots = ["helmet", "chest", "gloves", "boots"];
 
     let equippedCount = 0;
@@ -687,7 +755,7 @@ class GameScene extends Phaser.Scene {
         let bestItem = null;
 
         for (const itemKey of Object.keys(this.inventory)) {
-            const item = this.itemTypes[itemKey];
+            const item = this.getInventoryItemForKey(itemKey);
 
             if (!item) continue;
             if (item.itemType !== "armor") continue;
@@ -706,7 +774,8 @@ class GameScene extends Phaser.Scene {
                 name: bestItem.name,
                 armorBonus: bestItem.armorBonus ?? 0,
                 damageBonus: bestItem.damageBonus ?? 0,
-                speedBonus: bestItem.speedBonus ?? 0
+                speedBonus: bestItem.speedBonus ?? 0,
+                effects: bestItem.effects ?? []
             };
 
             equippedCount++;
@@ -723,9 +792,9 @@ class GameScene extends Phaser.Scene {
     );
 
     this.updateHud();
-    }
+}
 
-    toggleInventory() {
+toggleInventory() {
     this.inventoryOpen = !this.inventoryOpen;
 
     console.log("Inventory toggled:", this.inventoryOpen);
@@ -740,7 +809,7 @@ class GameScene extends Phaser.Scene {
     );
 
     this.inventoryText.setVisible(true);
-    }
+}
 
 equipSelectedInventoryItem() {
     const itemKeys = Object.keys(this.inventory);
@@ -750,7 +819,7 @@ equipSelectedInventoryItem() {
     }
 
     const itemKey = itemKeys[this.inventorySelection];
-    const item = this.itemTypes[itemKey];
+    const item = this.getInventoryItemForKey(itemKey);
 
     if (!item) {
         return;
@@ -773,7 +842,8 @@ equipSelectedInventoryItem() {
             name: item.name,
             armorBonus: item.armorBonus ?? 0,
             damageBonus: item.damageBonus ?? 0,
-            speedBonus: item.speedBonus ?? 0
+            speedBonus: item.speedBonus ?? 0,
+            effects: item.effects ?? []
         };
 
         this.combatText.setText(`Equipped ${item.name}`);
@@ -793,7 +863,10 @@ getInventoryLines() {
         lines.push("Inventory Empty");
     } else {
         itemKeys.slice(0, 10).forEach((itemKey, index) => {
-            const item = this.itemTypes[itemKey];
+            const item = this.getInventoryItemForKey(itemKey);
+            const quantity = this.getInventoryQuantityForKey(itemKey);
+
+            if (!item) return;
 
             const prefix =
                 index === this.inventorySelection
@@ -805,7 +878,7 @@ getInventoryLines() {
                 this.rarityStyles.common;
 
             lines.push(
-                `${prefix}[${rarity.label}] ${item.name} x${this.inventory[itemKey]}`
+                `${prefix}[${rarity.label}] ${item.name} x${quantity}`
             );
         });
 
@@ -826,7 +899,7 @@ getInventoryLines() {
         lines.push("None");
     } else {
         const selectedItemKey = itemKeys[this.inventorySelection];
-        const selectedItem = this.itemTypes[selectedItemKey];
+        const selectedItem = this.getInventoryItemForKey(selectedItemKey);
 
         if (selectedItem) {
             const rarity =
@@ -851,6 +924,27 @@ getInventoryLines() {
 
             if (selectedItem.speedBonus) {
                 lines.push(`Speed: +${selectedItem.speedBonus}`);
+            }
+
+            if (selectedItem.effects?.length > 0) {
+                lines.push("");
+                lines.push("Effects:");
+
+                selectedItem.effects.forEach((effect) => {
+                    if (effect.type === "bleedChance") {
+                        lines.push(`${effect.chance}% chance to bleed`);
+                        lines.push(
+                            `${effect.damagePerTick} damage/sec for ${effect.durationMs / 1000}s`
+                        );
+                    }
+
+                    if (effect.type === "burnChance") {
+                        lines.push(`${effect.chance}% chance to burn`);
+                        lines.push(
+                            `${effect.damagePerTick} damage/sec for ${effect.durationMs / 1000}s`
+                        );
+                    }
+                });
             }
 
             if (selectedItem.description) {
@@ -888,6 +982,28 @@ getInventoryLines() {
 
     return lines;
 }
+    showFloatingText(x, y, message, color = "#ffffff") {
+     const text = this.add.text(x, y, message, {
+            fontSize: "18px",
+            color,
+            fontStyle: "bold",
+            backgroundColor: "#00000088",
+            padding: { x: 4, y: 2 }
+        });
+
+        text.setOrigin(0.5, 0.5);
+
+     this.tweens.add({
+            targets: text,
+            y: y - 40,
+            alpha: 0,
+            duration: 900,
+            ease: "Power1",
+            onComplete: () => {
+                text.destroy();
+            }
+        });
+    }
 
     showAttackFlash(range) {
         const flash = this.add.circle(this.player.x, this.player.y, range, 0xffffff, 0.12);
